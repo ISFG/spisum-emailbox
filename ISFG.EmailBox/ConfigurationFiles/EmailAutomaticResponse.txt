@@ -1,0 +1,5 @@
+﻿<html>
+  <body>
+    <p>Automatic response text</p>
+  </body>
+</html>

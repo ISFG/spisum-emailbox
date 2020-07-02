@@ -1,0 +1,17 @@
+[
+  {
+    "Username": "email@provider.domain",
+    "Password": "password",
+    "DisplayName": "name",
+    "Pop3": {
+      "Port": 995,
+      "Host": "pop.provider.domain",
+      "UseSSL": true
+    },
+    "Stmp": {
+      "Port": 465,
+      "Host": "smtp.provider.domain",
+      "UseSSL": true
+    }
+  }
+]
