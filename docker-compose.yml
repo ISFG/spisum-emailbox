@@ -7,7 +7,7 @@ services:
       context: .
       dockerfile: ISFG.EmailBox/Dockerfile
     environment:
-      - ASPNETCORE_URLS=http://+:7778
+      - ASPNETCORE_URLS=http://+:8080
       - ASPNETCORE_LOG=Logs/log.txt
     ports:
-      - "7778:7778"
+      - "8086:8080"

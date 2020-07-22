@@ -14,13 +14,6 @@ This container have to be deployed at least 10 minutes after first deploy of htt
 
 ## How to run application
 
-In file **ISFG.EmailBox/appsettings.json** change URL address to your URL address where you will run the application
-```json
-"Alfresco": {
-    "Url": "http://hostname.domain:8082"
-} 
-```
-
 In this file **ISFG.EmailBox/ConfigurationFiles/EmailConfiguration.json** set your credentials for one or more e-mail accounts
 ```json
 [
