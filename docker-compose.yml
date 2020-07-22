@@ -3,11 +3,18 @@ version: '3.4'
 services:
   isfg.emailbox:
     image: spisum-emailbox
+    restart: unless-stopped
     build:
       context: .
       dockerfile: ISFG.EmailBox/Dockerfile
     environment:
       - ASPNETCORE_URLS=http://+:8080
       - ASPNETCORE_LOG=Logs/log.txt
+    networks:
+        - spisum_network
     ports:
-      - "8086:8080"
+      - "127.0.0.1:8086:8080"
+      
+networks:
+    spisum_network:
+        external: true
