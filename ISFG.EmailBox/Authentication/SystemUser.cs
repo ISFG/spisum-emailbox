@@ -22,6 +22,8 @@ namespace ISFG.EmailBox.Authentication
         public string RequestGroup => throw new System.NotImplementedException();
         public string Token { get; set; }
 
+        public string LastName => throw new System.NotImplementedException();
+
         #endregion
     }
 }

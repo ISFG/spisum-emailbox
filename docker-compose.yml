@@ -11,10 +11,13 @@ services:
       - ASPNETCORE_URLS=http://+:8080
       - ASPNETCORE_LOG=Logs/log.txt
     networks:
-        - spisum_network
+      - spisum_network
     ports:
-      - "127.0.0.1:8086:8080"
-      
+      - 127.0.0.1:8086:8080
+    volumes:
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+
 networks:
-    spisum_network:
-        external: true
+  spisum_network:
+      external: true

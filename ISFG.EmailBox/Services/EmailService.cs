@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using ISFG.Alfresco.Api.Extensions;
 using ISFG.Alfresco.Api.Interfaces;
@@ -34,10 +35,12 @@ namespace ISFG.EmailBox.Services
     public class EmailService : IEmailService
     {
         #region Fields
-
+        private static readonly SemaphoreSlim semaphoreSlim = new SemaphoreSlim(1, 1);
         private static List<EmailConfiguration> _configuration = new List<EmailConfiguration>();
         private static readonly List<EmailHistory> History = new List<EmailHistory>();
         private static readonly string TimeStampProperty = "ssl:timestampText";
+        private static readonly string PidProperty = "ssl:pid";
+        private static readonly string ComponentCounterProperty = "ssl:componentCounter";
         private readonly IAlfrescoHttpClient _alfrescoHttp;
         private readonly IEmailServerConfiguration _emailServerConfiguration;
         private List<Task<List<MimeMessage>>> _downloadingTask = new List<Task<List<MimeMessage>>>();
@@ -319,15 +322,21 @@ namespace ISFG.EmailBox.Services
                             // If third parameter is set - It will end up with badrequest
                             var file = new FormDataParam(memory.ToArray(), $"{IdGenerator.GenerateId()}.eml", null, "message/rfc822");
 
-                            var attachments = await SaveAllAttachments(message.Attachments);
+                            var emlFile = await SaveEMLFile(message, file);
+
+                            if (emlFile == null)
+                                return emails;
+
+                            var attachments = await SaveAllAttachments(message.Attachments, emlFile?.Entry?.Id);
+
+                            await _alfrescoHttp.UpdateNode(emlFile?.Entry?.Id, new NodeBodyUpdate()
+                                .AddProperty("ssl:emailAttachmentsCount", attachments?.Count));
 
                             if (attachments == null)
                             {
                                 emailClient.Disconnect(false);
                                 return emails;
-                            }
-
-                            var emlFile = await SaveEMLFile(message, file, attachments);
+                            }                            
 
                             if (emlFile == null)
                             {
@@ -339,6 +348,10 @@ namespace ISFG.EmailBox.Services
 
                             try
                             {
+                                // Update attachment count
+                                await _alfrescoHttp.UpdateNode(emlFile?.Entry?.Id, new NodeBodyUpdate()
+                                    .AddProperty(ComponentCounterProperty, attachments.Count));
+                                
                                 await CreateAllSecondaryChildren(emlFile, attachments);
                             }
                             catch
@@ -395,14 +408,14 @@ namespace ISFG.EmailBox.Services
             }
         }
 
-        private async Task<List<NodeEntry>> SaveAllAttachments(IEnumerable<MimeEntity> attachments)
+        private async Task<List<NodeEntry>> SaveAllAttachments(IEnumerable<MimeEntity> attachments, string parentId)
         {
             List<NodeEntry> createdAttachments = new List<NodeEntry>();
 
             foreach (var attachment in attachments)
                 try
                 {
-                    createdAttachments.Add(await SaveAttachment(attachment));
+                    createdAttachments.Add(await SaveAttachment(attachment, parentId));
                 }
                 catch
                 {
@@ -414,7 +427,7 @@ namespace ISFG.EmailBox.Services
             return createdAttachments;
         }
 
-        private async Task<NodeEntry> SaveAttachment(MimeEntity attachment)
+        private async Task<NodeEntry> SaveAttachment(MimeEntity attachment, string parentId)
         {
             using (var memoryAttachment = new MemoryStream())
             {
@@ -429,16 +442,19 @@ namespace ISFG.EmailBox.Services
 
                 FormDataParam fileParamsAttachment = new FormDataParam(bytes, Title);
 
+                string pid = await GenerateComponentPID(parentId);
+
                 return await _alfrescoHttp.CreateNode(EmailFolder.Entry.Id, fileParamsAttachment, ImmutableList<Parameter>.Empty
                     .Add(new Parameter(AlfrescoNames.Headers.NodeType, "cm:content", ParameterType.GetOrPost))
                     .Add(new Parameter(AlfrescoNames.ContentModel.Title, Title, ParameterType.GetOrPost))
+                    .Add(new Parameter(PidProperty, pid, ParameterType.GetOrPost))
                     .Add(new Parameter("ssl:fileName", attachment.ContentDisposition?.FileName, ParameterType.GetOrPost))
-                    .Add(new Parameter(HeaderNames.ContentType, "multipart/form-data", ParameterType.HttpHeader))
+                    .Add(new Parameter(HeaderNames.ContentType, "multipart/form-data", ParameterType.HttpHeader))                    
                     );
             }
         }
 
-        private async Task<NodeEntry> SaveEMLFile(MimeMessage message, FormDataParam fileParams, List<NodeEntry> attachments)
+        private async Task<NodeEntry> SaveEMLFile(MimeMessage message, FormDataParam fileParams)
         {
             try
             {
@@ -447,14 +463,15 @@ namespace ISFG.EmailBox.Services
                     .Add(new Parameter(AlfrescoNames.Headers.NodeType, "ssl:email", ParameterType.GetOrPost))
                     .Add(new Parameter(AlfrescoNames.ContentModel.Title, message.MessageId, ParameterType.GetOrPost))
                     .Add(new Parameter("ssl:fileName", $"{message.Subject}.eml", ParameterType.GetOrPost))
-                    .Add(new Parameter("ssl:emailAttachmentsCount", attachments?.Count ?? 0, ParameterType.GetOrPost))
+                    // .Add(new Parameter("ssl:emailAttachmentsCount", attachments?.Count ?? 0, ParameterType.GetOrPost))
                     .Add(new Parameter("ssl:emailDeliveryDate", message.Date.ToUniversalTime().ToString("yyyy'-'MM'-'dd'T'HH':'mm':'ss'.'fff'Z'"), ParameterType.GetOrPost))
                     .Add(new Parameter("ssl:emailMessageId", message.MessageId, ParameterType.GetOrPost))
                     .Add(new Parameter("ssl:emailRecipient", message.To.Mailboxes.First().Address, ParameterType.GetOrPost))
                     .Add(new Parameter("ssl:emailRecipientName", message.To.Mailboxes.First().Name, ParameterType.GetOrPost))
                     .Add(new Parameter("ssl:emailSender", message.From.Mailboxes.First().Address, ParameterType.GetOrPost))
                     .Add(new Parameter("ssl:emailSenderName", message.From.Mailboxes.First().Name, ParameterType.GetOrPost))
-                    .Add(new Parameter("ssl:emailSubject", message.Subject, ParameterType.GetOrPost)));
+                    .Add(new Parameter("ssl:emailSubject", message.Subject, ParameterType.GetOrPost))
+                    );
             }
             catch
             {
@@ -497,7 +514,34 @@ namespace ISFG.EmailBox.Services
 
         private List<MimeMessage> StartDownloadProcess(IEmailConfiguration configuration) => 
             RecieveEmails(configuration).Result;
+        public async Task<string> GenerateComponentPID(string parentId, string separator = "/")
+        {
+            await semaphoreSlim.WaitAsync();
 
+            try
+            {
+                var parentInfo = await _alfrescoHttp.GetNodeInfo(parentId, ImmutableList<Parameter>.Empty
+                    .Add(new Parameter(AlfrescoNames.Headers.Include, $"{AlfrescoNames.Includes.Properties},{AlfrescoNames.Includes.IsLocked}", ParameterType.QueryString)));
+
+                var properties = parentInfo.Entry.Properties.As<JObject>().ToDictionary();
+                var parentPID = properties.GetNestedValueOrDefault(PidProperty)?.ToString();
+                string propertyName = ComponentCounterProperty;
+
+                if (int.TryParse(properties.GetNestedValueOrDefault(propertyName)?.ToString(), out int counter))
+                    counter++;
+                else
+                    counter = 1;
+
+                await _alfrescoHttp.UpdateNode(parentId, new NodeBodyUpdate()
+                     .AddProperty(propertyName, counter));
+
+                return $"{parentPID}{separator}{counter}";
+            }
+            finally
+            {
+                semaphoreSlim.Release();
+            }
+        }
         #endregion
 
         #region Nested Types, Enums, Delegates

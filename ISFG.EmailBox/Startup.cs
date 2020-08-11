@@ -5,6 +5,7 @@ using ISFG.Common.Extensions;
 using ISFG.Common.Interfaces;
 using ISFG.EmailBox.Authentication;
 using ISFG.EmailBox.Interfaces;
+using ISFG.EmailBox.Models;
 using ISFG.EmailBox.Models.Configuration;
 using ISFG.EmailBox.Services;
 using ISFG.Exceptions;
@@ -25,15 +26,15 @@ namespace ISFG.EmailBox
 
         public Startup(IConfiguration configuration)
         {
-            AlfrescoConfiguration = configuration.Bind<IAlfrescoConfiguration, AlfrescoConfiguration>();
             EmailServerConfiguration = configuration.Bind<IEmailServerConfiguration, EmailServerConfiguration>();
+            EmailAlfrescoConfiguration = configuration.Bind<IEmailAlfrescoConfiguration, EmailAlfrescoConfiguration>();
         }
 
         #endregion
 
         #region Properties
 
-        private IAlfrescoConfiguration AlfrescoConfiguration { get; }
+        private IEmailAlfrescoConfiguration EmailAlfrescoConfiguration { get; }
         private IEmailServerConfiguration EmailServerConfiguration { get; }
 
         #endregion
@@ -69,8 +70,9 @@ namespace ISFG.EmailBox
                 });
 
             services.AddExceptions();
-            
-            services.AddAlfrescoApi(AlfrescoConfiguration);
+
+            services.AddAlfrescoApi(EmailAlfrescoConfiguration);
+            services.AddSingleton(EmailAlfrescoConfiguration);
             services.AddSingleton(EmailServerConfiguration);
             services.AddScoped<IAuthenticationHandler, SystemAuthentication>();
 
