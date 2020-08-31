@@ -1,5 +1,11 @@
 ﻿<html>
-  <body>
-    <p>Automatic response text</p>
-  </body>
+<body>
+<p>Dobrý den,</p>
+
+<p>Váš e-mail s předmětem <b>[predmet_doruceneho_emailu]</b> byl úspěšně doručen na podatelnu, kde čeká na zpracování.
+Na tuto zprávu neodpovídejte, byla automaticky vygenerována systémem.</p>
+
+<p>Hezký den,</p>
+<p>[nazev_organizace]</p>
+</body>
 </html>

@@ -203,7 +203,7 @@ namespace ISFG.EmailBox.Services
         {
             await _alfrescoHttp.CreateNodeSecondaryChildren(message.Entry.Id, new ChildAssociationBody
             {
-                AssocType = "ssl:emailAttachments",
+                AssocType = "ssl:digitalDeliveryAttachments",
                 ChildId = attachment.Entry.Id
             });
         }
@@ -330,7 +330,7 @@ namespace ISFG.EmailBox.Services
                             var attachments = await SaveAllAttachments(message.Attachments, emlFile?.Entry?.Id);
 
                             await _alfrescoHttp.UpdateNode(emlFile?.Entry?.Id, new NodeBodyUpdate()
-                                .AddProperty("ssl:emailAttachmentsCount", attachments?.Count));
+                                .AddProperty("ssl:digitalDeliveryAttachmentsCount", attachments?.Count));
 
                             if (attachments == null)
                             {
@@ -445,7 +445,7 @@ namespace ISFG.EmailBox.Services
                 string pid = await GenerateComponentPID(parentId);
 
                 return await _alfrescoHttp.CreateNode(EmailFolder.Entry.Id, fileParamsAttachment, ImmutableList<Parameter>.Empty
-                    .Add(new Parameter(AlfrescoNames.Headers.NodeType, "cm:content", ParameterType.GetOrPost))
+                    .Add(new Parameter(AlfrescoNames.Headers.NodeType, "ssl:component", ParameterType.GetOrPost))
                     .Add(new Parameter(AlfrescoNames.ContentModel.Title, Title, ParameterType.GetOrPost))
                     .Add(new Parameter(PidProperty, pid, ParameterType.GetOrPost))
                     .Add(new Parameter("ssl:fileName", attachment.ContentDisposition?.FileName, ParameterType.GetOrPost))
@@ -462,15 +462,14 @@ namespace ISFG.EmailBox.Services
                     .Add(new Parameter(HeaderNames.ContentType, "multipart/form-data", ParameterType.HttpHeader))
                     .Add(new Parameter(AlfrescoNames.Headers.NodeType, "ssl:email", ParameterType.GetOrPost))
                     .Add(new Parameter(AlfrescoNames.ContentModel.Title, message.MessageId, ParameterType.GetOrPost))
-                    .Add(new Parameter("ssl:fileName", $"{message.Subject}.eml", ParameterType.GetOrPost))
-                    // .Add(new Parameter("ssl:emailAttachmentsCount", attachments?.Count ?? 0, ParameterType.GetOrPost))
-                    .Add(new Parameter("ssl:emailDeliveryDate", message.Date.ToUniversalTime().ToString("yyyy'-'MM'-'dd'T'HH':'mm':'ss'.'fff'Z'"), ParameterType.GetOrPost))
+                    .Add(new Parameter("ssl:fileName", $"{message.Subject}.eml", ParameterType.GetOrPost))                    
+                    .Add(new Parameter("ssl:digitalDeliveryDeliveryDate", message.Date.ToUniversalTime().ToString("yyyy'-'MM'-'dd'T'HH':'mm':'ss'.'fff'Z'"), ParameterType.GetOrPost))
                     .Add(new Parameter("ssl:emailMessageId", message.MessageId, ParameterType.GetOrPost))
                     .Add(new Parameter("ssl:emailRecipient", message.To.Mailboxes.First().Address, ParameterType.GetOrPost))
                     .Add(new Parameter("ssl:emailRecipientName", message.To.Mailboxes.First().Name, ParameterType.GetOrPost))
                     .Add(new Parameter("ssl:emailSender", message.From.Mailboxes.First().Address, ParameterType.GetOrPost))
                     .Add(new Parameter("ssl:emailSenderName", message.From.Mailboxes.First().Name, ParameterType.GetOrPost))
-                    .Add(new Parameter("ssl:emailSubject", message.Subject, ParameterType.GetOrPost))
+                    .Add(new Parameter("ssl:digitalDeliverySubject", message.Subject, ParameterType.GetOrPost))
                     );
             }
             catch
